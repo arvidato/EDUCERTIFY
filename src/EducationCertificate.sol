@@ -18,6 +18,7 @@ interface IEducationCertificate {
 
     function authorizedUniversities(address university) external view returns (bool);
     function registeredDIDs(string memory did) external view returns (bool);
+    function isDIDRegistered(string memory did) external view returns (bool);
     function getCertificateDetails(
         address _student, 
         string calldata _certificateHash
