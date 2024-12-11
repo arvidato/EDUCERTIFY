@@ -101,6 +101,18 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         string certificateHash,
         uint256 newExpiration
     );
+    event DebugRegisterDID(address sender, string did);
+    event UniversityRegistrationRequested(address indexed university, string did);
+
+    // Add this to your contract's state variables
+    struct PendingUniversity {
+        address universityAddress;
+        string did;
+        uint256 requestTime;
+    }
+
+    PendingUniversity[] public pendingUniversities;
+    mapping(address => bool) public isPending;
 
     constructor() ERC721("EducationCertificate", "EDUCERT") Ownable(msg.sender) {}
 
@@ -120,14 +132,25 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         require(_university != address(0), "Invalid university address");
         require(!authorizedUniversities[_university], "University already authorized");
         require(bytes(_did).length > 0, "Invalid DID");
-        require(bytes(userDIDs[_university]).length == 0, "DID already registered");
         
-        // Register DID first
+        // Register DID and authorize
         userDIDs[_university] = _did;
         registeredDIDs[_did] = true;
-        
-        // Then authorize as university
         authorizedUniversities[_university] = true;
+        
+        // Remove from pending if exists
+        if (isPending[_university]) {
+            isPending[_university] = false;
+            // Remove from pendingUniversities array
+            for (uint i = 0; i < pendingUniversities.length; i++) {
+                if (pendingUniversities[i].universityAddress == _university) {
+                    // Move last element to this position and pop
+                    pendingUniversities[i] = pendingUniversities[pendingUniversities.length - 1];
+                    pendingUniversities.pop();
+                    break;
+                }
+            }
+        }
         
         emit UniversityAuthorized(_university);
     }
@@ -335,8 +358,18 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
 
     // Add DID registration function
     function registerDID(string calldata _did) external {
-        require(bytes(_did).length > 0, "Invalid DID");
-        require(bytes(userDIDs[msg.sender]).length == 0, "DID already registered");
+        require(bytes(_did).length > 0, "Invalid DID: Empty string");
+        require(
+            bytes(userDIDs[msg.sender]).length == 0, 
+            "DID already registered for this address"
+        );
+        require(
+            !registeredDIDs[_did], 
+            "This DID is already registered to another address"
+        );
+        
+        // Add debug event
+        emit DebugRegisterDID(msg.sender, _did);
         
         userDIDs[msg.sender] = _did;
         registeredDIDs[_did] = true;
@@ -345,5 +378,42 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
     // Add this function to implement the missing interface method
     function isDIDRegistered(string memory did) external view returns (bool) {
         return registeredDIDs[did];
+    }
+
+    // Add this function to check registration status
+    function checkRegistrationStatus(address _address, string calldata _did) 
+        external 
+        view 
+        returns (
+            bool hasExistingDID,
+            bool isDIDRegistered,
+            string memory currentDID
+        ) 
+    {
+        hasExistingDID = bytes(userDIDs[_address]).length > 0;
+        isDIDRegistered = registeredDIDs[_did];
+        currentDID = userDIDs[_address];
+        return (hasExistingDID, isDIDRegistered, currentDID);
+    }
+
+    // Add this function for universities to request registration
+    function requestUniversityRegistration(string calldata _did) external {
+        require(!authorizedUniversities[msg.sender], "Already authorized");
+        require(!isPending[msg.sender], "Registration already pending");
+        require(bytes(_did).length > 0, "Invalid DID");
+        
+        pendingUniversities.push(PendingUniversity({
+            universityAddress: msg.sender,
+            did: _did,
+            requestTime: block.timestamp
+        }));
+        isPending[msg.sender] = true;
+        
+        emit UniversityRegistrationRequested(msg.sender, _did);
+    }
+
+    // Add this function to get all pending universities
+    function getPendingUniversities() external view returns (PendingUniversity[] memory) {
+        return pendingUniversities;
     }
 } 

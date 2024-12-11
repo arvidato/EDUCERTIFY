@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@chakra-ui/react": "^2.8.2",
+    "@emotion/react": "^11.11.3",
+    "@emotion/styled": "^11.11.0",
+    "@wagmi/core": "^2.15.2",
+    "ethers": "^5.7.2",
+    "framer-motion": "^10.18.0",
+    "viem": "^2.21.54",
+    "wagmi": "^2.13.5"
+  }
+}
