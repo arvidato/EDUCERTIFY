@@ -43,7 +43,6 @@ function UniversityDashboard({ contracts, account }) {
   const [isAuthorized, setIsAuthorized] = useState(false);
   const toast = useToast();
   const [certificateData, setCertificateData] = useState(null);
-  const [ipfsGradesHash, setIpfsGradesHash] = useState('');
 
   // Add useEffect to check if university is authorized
   useEffect(() => {
@@ -236,30 +235,11 @@ function UniversityDashboard({ contracts, account }) {
 
     setIssuingCertificate(true);
     try {
-      // Create student data object
-      const studentData = {
-        studentName: studentId, // You might want to add a separate field for student name
-        studentId: studentId,
-        courses: [{
-          name: courseName,
-          grade: "N/A", // Add grade field if needed
-          completionDate: Math.floor(Date.now() / 1000),
-          credits: "N/A" // Add credits field if needed
-        }],
-        gpa: gpa || "N/A",
-        additionalInfo: additionalInfo || "",
-        did: `did:eth:${studentAddress}`
-      };
-
-      // Generate JSON data
-      const jsonData = await contracts.certificateHelper.createStudentDataJSON(studentData);
-      
-      // Issue certificate (you'll need to implement this in your smart contract)
       const tx = await contracts.educationCertificate.issueCertificate(
         studentAddress,
-        generatedHash,
+        certificateHash,
         certificateType,
-        jsonData,
+        ipfsHash,
         `did:eth:${studentAddress}`
       );
       
@@ -669,36 +649,34 @@ function UniversityDashboard({ contracts, account }) {
                     <Input
                       value={ipfsHash}
                       onChange={(e) => setIpfsHash(e.target.value)}
-                      placeholder="Enter IPFS NFT hash for the certificate image/metadata"
+                      placeholder="Upload your NFT image/metadata to IPFS and enter the hash"
                     />
                     <Text fontSize="sm" color="gray.500">
-                      Upload your NFT certificate image/metadata to IPFS and enter the hash here
+                      This is for the NFT image or metadata. Upload manually.
                     </Text>
                   </FormControl>
 
                   <FormControl isRequired>
-                    <FormLabel>NFT Certificate Data</FormLabel>
+                    <FormLabel>IPFS Certificate Hash</FormLabel>
                     <Input
-                      value={certificateData?.ipfsNFTHash || ''}
-                      readOnly
-                      placeholder="This will be populated from Generate Certificate Hash"
-                      bg="gray.50"
+                      value={ipfsNFTHash}
+                      onChange={(e) => setIpfsNFTHash(e.target.value)}
+                      placeholder="Upload your certificate data to IPFS and enter the hash"
                     />
                     <Text fontSize="sm" color="gray.500">
-                      Auto-populated from Generate Certificate Hash step
+                      Auto-filled from previous step, or upload manually
                     </Text>
                   </FormControl>
 
                   <FormControl isRequired>
-                    <FormLabel>Grades Data</FormLabel>
+                    <FormLabel>IPFS Grades Hash</FormLabel>
                     <Input
-                      value={certificateData?.ipfsGradesHash || ''}
-                      readOnly
-                      placeholder="This will be populated from Generate Certificate Hash"
-                      bg="gray.50"
+                      value={ipfsGradesHash}
+                      onChange={(e) => setIpfsGradesHash(e.target.value)}
+                      placeholder="Upload your grades data to IPFS and enter the hash"
                     />
                     <Text fontSize="sm" color="gray.500">
-                      Auto-populated from Generate Certificate Hash step
+                      Auto-filled from previous step, or upload manually
                     </Text>
                   </FormControl>
 
@@ -736,14 +714,41 @@ function UniversityDashboard({ contracts, account }) {
                       <Text><strong>Certificate Type:</strong> {certificateType}</Text>
                       <Text><strong>Student Address:</strong> {issuingTo}</Text>
                       <Text><strong>Student DID:</strong> {studentDID}</Text>
-                      <Text><strong>IPFS NFT Hash:</strong> {ipfsHash}</Text>
-                      <Text><strong>NFT Certificate Data:</strong> {certificateData?.ipfsNFTHash || 'Not set'}</Text>
-                      <Text><strong>Grades Data:</strong> {certificateData?.ipfsGradesHash || 'Not set'}</Text>
+                      <Text><strong>IPFS NFT Hash:</strong> {ipfsHash || 'Not set'}</Text>
+                      <Text><strong>IPFS Certificate Hash:</strong> {ipfsNFTHash || 'Not set'}</Text>
+                      <Text><strong>IPFS Grades Hash:</strong> {ipfsGradesHash || 'Not set'}</Text>
                       <Text><strong>Issuance Date:</strong> {
                         issuanceDate ? new Date(issuanceDate * 1000).toLocaleDateString() : 'Not set'
                       }</Text>
                     </Stack>
                   </Box>
+
+                  <Stack direction="row" spacing={4} mt={2}>
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${ipfsHash}`, '_blank')}
+                      isDisabled={!ipfsHash}
+                    >
+                      Preview NFT
+                    </Button>
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${ipfsNFTHash}`, '_blank')}
+                      isDisabled={!ipfsNFTHash}
+                    >
+                      Preview Certificate Data
+                    </Button>
+                    <Button
+                      size="sm"
+                      colorScheme="teal"
+                      onClick={() => window.open(`https://gateway.pinata.cloud/ipfs/${ipfsGradesHash}`, '_blank')}
+                      isDisabled={!ipfsGradesHash}
+                    >
+                      Preview Grades Data
+                    </Button>
+                  </Stack>
 
                   <Button
                     colorScheme="green"

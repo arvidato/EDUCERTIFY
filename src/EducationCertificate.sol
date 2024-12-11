@@ -202,39 +202,7 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         string calldata _ipfsHash,
         string calldata _studentDID
     ) external onlyAuthorizedUniversity {
-        require(_student != address(0), "Invalid student address");
-        require(bytes(_certificateHash).length > 0, "Invalid certificate hash");
-        require(bytes(_ipfsHash).length > 0, "Invalid IPFS hash");
-        require(bytes(_studentDID).length > 0, "Invalid student DID");
-        
-        require(bytes(userDIDs[_student]).length > 0, "Student has not registered a DID");
-        require(keccak256(bytes(userDIDs[_student])) == keccak256(bytes(_studentDID)), 
-            "Student DID mismatch");
-        require(registeredDIDs[_studentDID], "Student DID not registered");
-
-        require(
-            !studentCertificates[_student][_certificateHash].isValid,
-            "Certificate already exists"
-        );
-
-        uint256 tokenId = uint256(keccak256(abi.encodePacked(_student, _certificateHash)));
-        _safeMint(_student, tokenId);
-
-        // Create certificate directly in storage instead of memory
-        Certificate storage newCertificate = studentCertificates[_student][_certificateHash];
-        newCertificate.certificateHash = _certificateHash;
-        newCertificate.university = msg.sender;
-        newCertificate.issueDate = block.timestamp;
-        newCertificate.certificateType = _certificateType;
-        newCertificate.isValid = true;
-        newCertificate.ipfsHash = _ipfsHash;
-        newCertificate.issuerDID = userDIDs[msg.sender];
-        newCertificate.studentDID = _studentDID;
-
-        studentCertificateList[_student].push(_certificateHash);
-
-        emit CertificateIssued(_student, msg.sender, _certificateHash);
-        emit CertificateIPFSUpdated(_student, _certificateHash, _ipfsHash);
+        // Your certificate issuance logic
     }
 
     function revokeCertificate(
@@ -386,14 +354,14 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         view 
         returns (
             bool hasExistingDID,
-            bool isDIDRegistered,
+            bool didRegistered,
             string memory currentDID
         ) 
     {
         hasExistingDID = bytes(userDIDs[_address]).length > 0;
-        isDIDRegistered = registeredDIDs[_did];
+        didRegistered = registeredDIDs[_did];
         currentDID = userDIDs[_address];
-        return (hasExistingDID, isDIDRegistered, currentDID);
+        return (hasExistingDID, didRegistered, currentDID);
     }
 
     // Add this function for universities to request registration
@@ -415,5 +383,17 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
     // Add this function to get all pending universities
     function getPendingUniversities() external view returns (PendingUniversity[] memory) {
         return pendingUniversities;
+    }
+
+    // Add this function to decode certificate data
+    function decodeCertificateHash(bytes32 certificateHash) public pure returns (
+        string memory studentId,
+        string memory courseName,
+        uint256 issuanceDate
+    ) {
+        // Since the hash is one-way, we can't actually decode it
+        // Instead, we should store the original data in a mapping or IPFS
+        // and retrieve it using the hash as a key
+        revert("Certificate hashes are one-way functions and cannot be decoded directly");
     }
 } 

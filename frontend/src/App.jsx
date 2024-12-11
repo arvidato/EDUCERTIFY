@@ -96,6 +96,7 @@ function App() {
     <ChakraProvider>
       <Box minH="100vh" bg="gray.50">
         {account ? (
+          console.log('Rendering with:', { contracts, account, userType }) ||
           isAdmin ? (
             <AdminDashboard 
               contracts={contracts}

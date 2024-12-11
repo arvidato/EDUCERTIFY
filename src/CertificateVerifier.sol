@@ -14,12 +14,19 @@ contract CertificateVerifier {
         uint256 timestamp;
         address issuingUniversity;
         uint256 issueDate;
-        string issuerDID;
         string studentDID;
+    }
+    
+    struct SharedCertificate {
+        string certificateHash;
+        uint256 expiryTime;
+        bool isActive;
     }
     
     mapping(address => mapping(uint256 => VerificationRequest)) public verificationRequests;
     mapping(address => uint256) public employerRequestCount;
+    mapping(address => mapping(address => SharedCertificate)) public sharedCertificates;
+    mapping(address => address[]) public authorizedViewers;
     
     event VerificationStatus(
         address indexed employer,
@@ -28,6 +35,19 @@ contract CertificateVerifier {
         uint8 status,
         string reason,
         uint256 requestId
+    );
+    
+    event CertificateShared(
+        address indexed student,
+        address indexed viewer,
+        string certificateHash,
+        uint256 expiryTime
+    );
+    
+    event CertificateShareRevoked(
+        address indexed student,
+        address indexed viewer,
+        string certificateHash
     );
     
     constructor(address _certificateContract) {
@@ -51,7 +71,6 @@ contract CertificateVerifier {
             timestamp: block.timestamp,
             issuingUniversity: address(0),
             issueDate: 0,
-            issuerDID: "",
             studentDID: ""
         });
         
@@ -78,13 +97,12 @@ contract CertificateVerifier {
             request.student,
             request.certificateHash
         ) returns (
-            string memory,
+            string memory certificateHash,
             address university,
             uint256 issueDate,
-            string memory,
+            string memory certificateType,
             bool isValid,
-            string memory,
-            string memory issuerDID,
+            string memory ipfsHash,
             string memory studentDID
         ) {
             if (!certificateContract.authorizedUniversities(university)) {
@@ -99,14 +117,13 @@ contract CertificateVerifier {
                 return;
             }
             
-            if (!certificateContract.isDIDRegistered(issuerDID) || 
-                !certificateContract.isDIDRegistered(studentDID)) {
+            if (!certificateContract.isDIDRegistered(studentDID)) {
                 emit VerificationStatus(
                     msg.sender,
                     request.student,
                     request.certificateHash,
                     2,
-                    "Invalid DIDs",
+                    "Invalid DID",
                     _requestId
                 );
                 return;
@@ -127,7 +144,6 @@ contract CertificateVerifier {
             request.isVerified = true;
             request.issuingUniversity = university;
             request.issueDate = issueDate;
-            request.issuerDID = issuerDID;
             request.studentDID = studentDID;
             
             emit VerificationStatus(
@@ -161,7 +177,6 @@ contract CertificateVerifier {
         address issuingUniversity,
         uint256 issueDate,
         bool isUniversityAuthorized,
-        string memory issuerDID,
         string memory studentDID
     ) {
         VerificationRequest memory request = verificationRequests[msg.sender][_requestId];
@@ -180,12 +195,72 @@ contract CertificateVerifier {
             request.issuingUniversity,
             request.issueDate,
             universityAuthorized,
-            request.issuerDID,
             request.studentDID
         );
     }
     
     function getEmployerVerificationCount() external view returns (uint256) {
         return employerRequestCount[msg.sender];
+    }
+    
+    function shareCertificate(
+        address _viewer,
+        string calldata _certificateHash,
+        uint256 _duration
+    ) external {
+        require(_viewer != address(0), "Invalid viewer address");
+        require(bytes(_certificateHash).length > 0, "Invalid certificate hash");
+        require(_duration > 0, "Duration must be greater than 0");
+
+        uint256 expiryTime = block.timestamp + _duration;
+        
+        SharedCertificate memory shared = SharedCertificate({
+            certificateHash: _certificateHash,
+            expiryTime: expiryTime,
+            isActive: true
+        });
+        
+        sharedCertificates[msg.sender][_viewer] = shared;
+        authorizedViewers[msg.sender].push(_viewer);
+        
+        emit CertificateShared(msg.sender, _viewer, _certificateHash, expiryTime);
+    }
+    
+    function revokeCertificateAccess(address _viewer) external {
+        require(sharedCertificates[msg.sender][_viewer].isActive, "No active sharing found");
+        
+        sharedCertificates[msg.sender][_viewer].isActive = false;
+        
+        emit CertificateShareRevoked(
+            msg.sender,
+            _viewer,
+            sharedCertificates[msg.sender][_viewer].certificateHash
+        );
+    }
+    
+    function getSharedCertificateDetails(
+        address _student,
+        address _viewer
+    ) external view returns (
+        string memory certificateHash,
+        uint256 expiryTime,
+        bool isActive,
+        bool isValid
+    ) {
+        SharedCertificate memory shared = sharedCertificates[_student][_viewer];
+        bool valid = shared.isActive && shared.expiryTime > block.timestamp;
+        
+        return (
+            shared.certificateHash,
+            shared.expiryTime,
+            shared.isActive,
+            valid
+        );
+    }
+    
+    function getAuthorizedViewers(
+        address _student
+    ) external view returns (address[] memory) {
+        return authorizedViewers[_student];
     }
 } 
