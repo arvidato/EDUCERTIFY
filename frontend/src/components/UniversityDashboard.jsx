@@ -20,6 +20,8 @@ import {
   Divider,
   Textarea,
 } from '@chakra-ui/react';
+import { ethers } from 'ethers';
+import axios from 'axios';
 
 function UniversityDashboard({ contracts, account }) {
   const [issuingCertificate, setIssuingCertificate] = useState(false);
@@ -40,6 +42,8 @@ function UniversityDashboard({ contracts, account }) {
   const [issuanceDate, setIssuanceDate] = useState('');
   const [isAuthorized, setIsAuthorized] = useState(false);
   const toast = useToast();
+  const [certificateData, setCertificateData] = useState(null);
+  const [ipfsGradesHash, setIpfsGradesHash] = useState('');
 
   // Add useEffect to check if university is authorized
   useEffect(() => {
@@ -70,30 +74,83 @@ function UniversityDashboard({ contracts, account }) {
     }
 
     try {
-      // Create the certificate data
-      const certificateData = {
+      // Create the certificate NFT data
+      const certificateNFTData = {
         studentName,
         studentAddress,
         studentId,
         courseType,
         courseName,
+        issuanceDate: Math.floor(Date.now() / 1000),
+        schoolName: account,
+        universityAddress: account,
+        timestamp: new Date().toISOString(),
+        studentDID: `did:eth:${studentAddress}`
+      };
+
+      // Create separate grades data
+      const gradesData = {
+        studentId,
+        studentName,
+        studentAddress,
+        courseType,
+        courseName,
         overallGrade: overallGrade || 'N/A',
         additionalInfo: additionalInfo || '',
-        issuanceDate: Math.floor(Date.now() / 1000),
-        schoolName: account
+        timestamp: new Date().toISOString(),
+        universityAddress: account
       };
 
       // Generate hash using the helper contract
       const hash = await contracts.certificateHelper.generateCertificateHash(
         studentId,
         courseName,
-        certificateData.issuanceDate
+        certificateNFTData.issuanceDate
       );
       setGeneratedHash(hash);
 
-      // Store the certificate data in IPFS (mock for now)
-      const mockIpfsHash = "QmXyz..."; // You'll need to implement actual IPFS storage
-      setIpfsHash(mockIpfsHash);
+      // Upload both JSONs to Pinata
+      try {
+        // Upload certificate NFT data
+        const nftHash = await uploadToPinata(certificateNFTData, hash, 'nft');
+        setIpfsHash(nftHash);
+        
+        // Upload grades data
+        const gradesHash = await uploadToPinata(gradesData, hash, 'grades');
+        setIpfsGradesHash(gradesHash);
+
+        toast({
+          title: 'Success',
+          description: 'Certificate and grades data uploaded to IPFS successfully!',
+          status: 'success',
+          duration: 3000,
+          isClosable: true,
+        });
+
+        // Store complete data
+        const completeData = {
+          ...certificateNFTData,
+          grades: gradesData,
+          ipfsNFTHash: nftHash,
+          ipfsGradesHash: gradesHash,
+          certificateHash: hash
+        };
+
+        // Store in localStorage
+        localStorage.setItem(hash, JSON.stringify(completeData));
+        setCertificateData(completeData);
+        setCertificateHash(hash);
+
+      } catch (pinataError) {
+        console.error('Pinata upload error:', pinataError);
+        toast({
+          title: 'Warning',
+          description: 'Failed to upload to IPFS, but continuing with hash generation',
+          status: 'warning',
+          duration: 5000,
+          isClosable: true,
+        });
+      }
 
       toast({
         title: 'Success',
@@ -102,17 +159,6 @@ function UniversityDashboard({ contracts, account }) {
         duration: 5000,
         isClosable: true,
       });
-
-      // Store the data for the Issue Certificate tab
-      localStorage.setItem('certificateData', JSON.stringify({
-        hash,
-        ipfsHash: mockIpfsHash,
-        courseName,
-        studentAddress,
-        studentDID: `did:eth:${studentAddress}`,
-        issuanceDate: certificateData.issuanceDate,
-        schoolName: account
-      }));
 
     } catch (error) {
       console.error('Error generating hash:', error);
@@ -123,6 +169,56 @@ function UniversityDashboard({ contracts, account }) {
         duration: 5000,
         isClosable: true,
       });
+    }
+  };
+
+  // Update the uploadToPinata function to handle different types of data
+  const uploadToPinata = async (data, hash, type) => {
+    const savedCredentials = localStorage.getItem(`pinata_credentials_${account}`);
+    if (!savedCredentials) {
+      throw new Error('Please set up your Pinata credentials in the University Profile tab');
+    }
+
+    const { jwt } = JSON.parse(savedCredentials);
+    
+    try {
+      const JSONBody = JSON.stringify(data);
+      const formData = new FormData();
+      const blob = new Blob([JSONBody], { type: 'application/json' });
+      
+      // Create filename using hash, type and DID
+      const filename = `${hash}_${type}_${data.studentDID || 'did:eth:' + data.studentAddress}.json`;
+      formData.append('file', blob, filename);
+
+      // Add metadata
+      const pinataMetadata = JSON.stringify({
+        name: filename,
+        keyvalues: {
+          studentDID: data.studentDID || 'did:eth:' + data.studentAddress,
+          certificateHash: hash,
+          type: type,
+          universityAddress: account,
+          timestamp: data.timestamp
+        }
+      });
+
+      formData.append('pinataMetadata', pinataMetadata);
+
+      const response = await axios.post(
+        'https://api.pinata.cloud/pinning/pinFileToIPFS',
+        formData,
+        {
+          headers: {
+            'Authorization': `Bearer ${jwt}`,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      return response.data.IpfsHash;
+    } catch (error) {
+      console.error('Error uploading to Pinata:', error);
+      throw error;
     }
   };
 
@@ -276,6 +372,93 @@ function UniversityDashboard({ contracts, account }) {
     }
   }, []);
 
+  const issueCertificate = async (studentAddress, certificateHash) => {
+    try {
+      setIssuingCertificate(true);
+      const provider = new ethers.providers.Web3Provider(window.ethereum);
+      const signer = provider.getSigner();
+      const contract = new ethers.Contract(contractAddress, contractABI, signer);
+      
+      const tx = await contract.issueCertificate(studentAddress, certificateHash);
+      await tx.wait();
+      
+      toast.success('Certificate issued successfully!');
+    } catch (error) {
+      console.error('Error issuing certificate:', error);
+      toast.error('Failed to issue certificate');
+    } finally {
+      setIssuingCertificate(false);
+    }
+  };
+
+  const generateCertificateHash = async (e) => {
+    e.preventDefault();
+    try {
+      setGeneratingHash(true);
+      
+      // Create the certificate data object
+      const certData = {
+        studentName,
+        studentId,
+        courseName,
+        courseType,
+        overallGrade: overallGrade || 'N/A',
+        completionDate: Math.floor(Date.now() / 1000),
+        additionalInfo: additionalInfo || '',
+        studentAddress,
+        universityAddress: account,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Generate hash
+      const certificateHash = ethers.utils.id(JSON.stringify(certData));
+      
+      // Upload to Pinata
+      try {
+        const ipfsHash = await uploadToPinata(certData);
+        setIpfsHash(ipfsHash);
+        toast.success('Certificate data uploaded to IPFS successfully!');
+        
+        // Store the IPFS hash along with the certificate data
+        certData.ipfsHash = ipfsHash;
+      } catch (pinataError) {
+        toast.warning('Failed to upload to IPFS, but continuing with hash generation');
+      }
+      
+      // Store the certificate data in localStorage
+      localStorage.setItem(certificateHash, JSON.stringify(certData));
+      
+      setCertificateHash(certificateHash);
+      setCertificateData(certData);
+      
+      // Add option to issue certificate immediately
+      if (window.confirm('Would you like to issue this certificate now?')) {
+        await issueCertificate(studentAddress, certificateHash);
+      }
+      
+      toast.success('Certificate hash generated successfully!');
+    } catch (error) {
+      console.error('Error generating hash:', error);
+      toast.error('Failed to generate certificate hash');
+    } finally {
+      setGeneratingHash(false);
+    }
+  };
+
+  // Add this new function to decode/retrieve certificate data
+  const decodeCertificateHash = (hash) => {
+    try {
+      const storedData = localStorage.getItem(hash);
+      if (storedData) {
+        return JSON.parse(storedData);
+      }
+      return null;
+    } catch (error) {
+      console.error('Error decoding certificate hash:', error);
+      return null;
+    }
+  };
+
   return (
     <Container maxW="container.xl" py={5}>
       <Heading mb={6}>University Dashboard</Heading>
@@ -378,10 +561,36 @@ function UniversityDashboard({ contracts, account }) {
                     Generate Certificate Hash
                   </Button>
 
-                  {generatedHash && (
+                  {certificateHash && (
                     <Box p={4} bg="gray.50" borderRadius="md">
                       <Text><strong>Generated Hash:</strong></Text>
-                      <Text fontSize="sm" wordBreak="break-all">{generatedHash}</Text>
+                      <Text fontSize="sm" wordBreak="break-all">{certificateHash}</Text>
+                      
+                      {ipfsHash && (
+                        <Box mt={2}>
+                          <Text><strong>IPFS Hash:</strong></Text>
+                          <Text fontSize="sm" wordBreak="break-all">{ipfsHash}</Text>
+                        </Box>
+                      )}
+                      
+                      {/* Add this section to show decoded data */}
+                      <Box mt={4}>
+                        <Text><strong>Certificate Data:</strong></Text>
+                        {certificateData && (
+                          <Stack spacing={2} mt={2}>
+                            <Text>Student Name: {certificateData.studentName}</Text>
+                            <Text>Student ID: {certificateData.studentId}</Text>
+                            <Text>Course Name: {certificateData.courseName}</Text>
+                            <Text>Course Type: {certificateData.courseType}</Text>
+                            <Text>Grade: {certificateData.overallGrade}</Text>
+                            <Text>Completion Date: {new Date(certificateData.completionDate * 1000).toLocaleDateString()}</Text>
+                            {certificateData.additionalInfo && (
+                              <Text>Additional Info: {certificateData.additionalInfo}</Text>
+                            )}
+                          </Stack>
+                        )}
+                      </Box>
+                      
                       <Text mt={2} color="blue.600">
                         Proceed to the "Issue Certificate" tab to complete the process
                       </Text>
@@ -456,12 +665,41 @@ function UniversityDashboard({ contracts, account }) {
                   </FormControl>
 
                   <FormControl isRequired>
-                    <FormLabel>IPFS Hash</FormLabel>
+                    <FormLabel>IPFS NFT Hash</FormLabel>
                     <Input
                       value={ipfsHash}
                       onChange={(e) => setIpfsHash(e.target.value)}
-                      placeholder="Enter IPFS hash"
+                      placeholder="Enter IPFS NFT hash for the certificate image/metadata"
                     />
+                    <Text fontSize="sm" color="gray.500">
+                      Upload your NFT certificate image/metadata to IPFS and enter the hash here
+                    </Text>
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>NFT Certificate Data</FormLabel>
+                    <Input
+                      value={certificateData?.ipfsNFTHash || ''}
+                      readOnly
+                      placeholder="This will be populated from Generate Certificate Hash"
+                      bg="gray.50"
+                    />
+                    <Text fontSize="sm" color="gray.500">
+                      Auto-populated from Generate Certificate Hash step
+                    </Text>
+                  </FormControl>
+
+                  <FormControl isRequired>
+                    <FormLabel>Grades Data</FormLabel>
+                    <Input
+                      value={certificateData?.ipfsGradesHash || ''}
+                      readOnly
+                      placeholder="This will be populated from Generate Certificate Hash"
+                      bg="gray.50"
+                    />
+                    <Text fontSize="sm" color="gray.500">
+                      Auto-populated from Generate Certificate Hash step
+                    </Text>
                   </FormControl>
 
                   <FormControl isRequired>
@@ -498,7 +736,9 @@ function UniversityDashboard({ contracts, account }) {
                       <Text><strong>Certificate Type:</strong> {certificateType}</Text>
                       <Text><strong>Student Address:</strong> {issuingTo}</Text>
                       <Text><strong>Student DID:</strong> {studentDID}</Text>
-                      <Text><strong>IPFS Hash:</strong> {ipfsHash}</Text>
+                      <Text><strong>IPFS NFT Hash:</strong> {ipfsHash}</Text>
+                      <Text><strong>NFT Certificate Data:</strong> {certificateData?.ipfsNFTHash || 'Not set'}</Text>
+                      <Text><strong>Grades Data:</strong> {certificateData?.ipfsGradesHash || 'Not set'}</Text>
                       <Text><strong>Issuance Date:</strong> {
                         issuanceDate ? new Date(issuanceDate * 1000).toLocaleDateString() : 'Not set'
                       }</Text>
@@ -536,9 +776,8 @@ function UniversityDashboard({ contracts, account }) {
                 <Stack spacing={4}>
                   <Heading size="md">University Profile</Heading>
                   <Text><strong>Address:</strong> {account}</Text>
-                  <Divider />
                   <Text><strong>DID:</strong> did:eth:{account}</Text>
-                  <Text><strong>Status:</strong> Authorized</Text>
+                  <Text><strong>Status:</strong> {isAuthorized ? 'Authorized' : 'Not Authorized'}</Text>
                 </Stack>
               </CardBody>
             </Card>

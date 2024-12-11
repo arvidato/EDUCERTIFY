@@ -61,6 +61,7 @@ function StudentDashboard({ contracts, account, certificates }) {
         <TabList>
           <Tab>My Certificates</Tab>
           <Tab>Share Certificates</Tab>
+          <Tab>View Grades</Tab>
           <Tab>Profile</Tab>
         </TabList>
 
@@ -114,6 +115,21 @@ function StudentDashboard({ contracts, account, certificates }) {
                 <Heading size="md" mb={4}>Share Certificates</Heading>
                 <Text>Share your certificates with employers or institutions.</Text>
                 {/* Add sharing functionality here */}
+              </CardBody>
+            </Card>
+          </TabPanel>
+
+          {/* View Grades Tab */}
+          <TabPanel>
+            <Card>
+              <CardBody>
+                <Stack spacing={4}>
+                  <Heading size="md">Academic Grades</Heading>
+                  <Text color="gray.600">
+                    View your academic performance and grades for all courses.
+                  </Text>
+                  {/* Add grades display functionality here */}
+                </Stack>
               </CardBody>
             </Card>
           </TabPanel>
