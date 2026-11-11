@@ -11,7 +11,10 @@ The project was developed as part of a blockchain application development projec
 
 ![University Dashboard](screenshots/university-dashboard.png)
 
-![Employer(Viewer) Dashboard](screenshots/employer-dashboard1.png)(screenshots/employer-dashboard2.png)
+![Employer(Viewer) Dashboard](screenshots/employer-dashboard1.png)
+
+![Employer(Viewer) Dashboard](screenshots/employer-dashboard2.png)
+
 
 ![Admin Dashboard](screenshots/admin-dashboard.png)
 
