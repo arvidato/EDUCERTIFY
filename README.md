@@ -15,7 +15,6 @@ The project was developed as part of a blockchain application development projec
 
 ![Employer(Viewer) Dashboard](screenshots/employer-dashboard2.png)
 
-
 ![Admin Dashboard](screenshots/admin-dashboard.png)
 
 ## ✨ Features
@@ -125,7 +124,7 @@ Follow the project's deployment instructions to deploy the smart contracts and s
 
 ## 🎥 Demo
 
-[▶️ Watch the EDUCERTIFY Demo](demo/educertify-demo.mp4)
+[▶️ Watch the EDUCERTIFY Demo](demo/educertify-demo.mp4)(https://youtu.be/Ih0XmD1BGmw)
 
 ## 🎯 Project Objectives
 
