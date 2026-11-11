@@ -43,7 +43,9 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         uint256 issueDate;
         string certificateType;
         bool isValid;
-        string ipfsHash;
+        string ipfsHash;         // NFT image/metadata
+        string ipfsNFTHash;      // Certificate data
+        string ipfsGradesHash;   // Grades data
         mapping(address => bool) authorizedViewers;
         mapping(address => uint256) viewerExpiration;
         string issuerDID;
@@ -202,7 +204,27 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         string calldata _ipfsHash,
         string calldata _studentDID
     ) external onlyAuthorizedUniversity {
-        // Your certificate issuance logic
+        require(_student != address(0), "Invalid student address");
+        require(bytes(_certificateHash).length > 0, "Invalid certificate hash");
+        require(bytes(_certificateType).length > 0, "Invalid certificate type");
+        require(bytes(_ipfsHash).length > 0, "Invalid IPFS hash");
+        require(bytes(_studentDID).length > 0, "Invalid student DID");
+        
+        Certificate storage cert = studentCertificates[_student][_certificateHash];
+        require(bytes(cert.certificateHash).length == 0, "Certificate already exists");
+        
+        cert.certificateHash = _certificateHash;
+        cert.university = msg.sender;
+        cert.issueDate = block.timestamp;
+        cert.certificateType = _certificateType;
+        cert.isValid = true;
+        cert.ipfsHash = _ipfsHash;
+        cert.issuerDID = userDIDs[msg.sender];
+        cert.studentDID = _studentDID;
+        
+        studentCertificateList[_student].push(_certificateHash);
+        
+        emit CertificateIssued(_student, msg.sender, _certificateHash);
     }
 
     function revokeCertificate(
@@ -385,11 +407,13 @@ contract EducationCertificate is IEducationCertificate, ERC721, Ownable {
         return pendingUniversities;
     }
 
-    // Add this function to decode certificate data
-    function decodeCertificateHash(bytes32 certificateHash) public pure returns (
-        string memory studentId,
-        string memory courseName,
-        uint256 issuanceDate
+    // Update the decodeCertificateHash function
+    function decodeCertificateHash(
+        bytes32 /* certificateHash */
+    ) public pure returns (
+        string memory /* studentId */,
+        string memory /* courseName */,
+        uint256 /* issuanceDate */
     ) {
         // Since the hash is one-way, we can't actually decode it
         // Instead, we should store the original data in a mapping or IPFS

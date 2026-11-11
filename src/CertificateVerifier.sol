@@ -97,12 +97,13 @@ contract CertificateVerifier {
             request.student,
             request.certificateHash
         ) returns (
-            string memory certificateHash,
+            string memory,
             address university,
             uint256 issueDate,
-            string memory certificateType,
+            string memory,
             bool isValid,
-            string memory ipfsHash,
+            string memory,
+            string memory /* issuerDID */,
             string memory studentDID
         ) {
             if (!certificateContract.authorizedUniversities(university)) {

@@ -24,6 +24,8 @@ import { ethers } from 'ethers';
 import axios from 'axios';
 
 function UniversityDashboard({ contracts, account }) {
+  const [ipfsNFTHash, setIpfsNFTHash] = useState('');
+  const [ipfsGradesHash, setIpfsGradesHash] = useState('');
   const [issuingCertificate, setIssuingCertificate] = useState(false);
   const [studentAddress, setStudentAddress] = useState('');
   const [studentId, setStudentId] = useState('');
@@ -112,11 +114,14 @@ function UniversityDashboard({ contracts, account }) {
       try {
         // Upload certificate NFT data
         const nftHash = await uploadToPinata(certificateNFTData, hash, 'nft');
-        setIpfsHash(nftHash);
+        setIpfsNFTHash(nftHash);
         
         // Upload grades data
         const gradesHash = await uploadToPinata(gradesData, hash, 'grades');
         setIpfsGradesHash(gradesHash);
+
+        // Set the regular ipfsHash to the NFT hash for backward compatibility
+        setIpfsHash(nftHash);
 
         toast({
           title: 'Success',
@@ -276,6 +281,14 @@ function UniversityDashboard({ contracts, account }) {
   };
 
   const handleIssueCertificateDirectly = async () => {
+    console.log("Current account:", account);
+    try {
+      const isAuth = await contracts.educationCertificate.authorizedUniversities(account);
+      console.log("Is university authorized:", isAuth);
+    } catch (error) {
+      console.error("Error checking authorization:", error);
+    }
+
     if (!isAuthorized) {
       toast({
         title: 'Error',
@@ -436,6 +449,31 @@ function UniversityDashboard({ contracts, account }) {
     } catch (error) {
       console.error('Error decoding certificate hash:', error);
       return null;
+    }
+  };
+
+  const requestAuthorization = async () => {
+    try {
+      const did = `did:eth:${account}`;
+      const tx = await contracts.educationCertificate.requestUniversityRegistration(did);
+      await tx.wait();
+      
+      toast({
+        title: 'Success',
+        description: 'Authorization requested successfully',
+        status: 'success',
+        duration: 3000,
+        isClosable: true,
+      });
+    } catch (error) {
+      console.error('Error requesting authorization:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to request authorization',
+        status: 'error',
+        duration: 5000,
+        isClosable: true,
+      });
     }
   };
 
@@ -783,6 +821,15 @@ function UniversityDashboard({ contracts, account }) {
                   <Text><strong>Address:</strong> {account}</Text>
                   <Text><strong>DID:</strong> did:eth:{account}</Text>
                   <Text><strong>Status:</strong> {isAuthorized ? 'Authorized' : 'Not Authorized'}</Text>
+                  
+                  {!isAuthorized && (
+                    <Button
+                      colorScheme="blue"
+                      onClick={requestAuthorization}
+                    >
+                      Request Authorization
+                    </Button>
+                  )}
                 </Stack>
               </CardBody>
             </Card>

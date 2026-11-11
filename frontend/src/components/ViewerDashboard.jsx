@@ -38,6 +38,97 @@ import {
 const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
 
+const CertificateDetailsModal = ({ isOpen, onClose, certificate }) => {
+  const [imageUrl, setImageUrl] = useState(null);
+
+  useEffect(() => {
+    if (certificate?.ipfsHash) {
+      // Try Pinata gateway first, fallback to IPFS gateway
+      setImageUrl(`${PINATA_GATEWAY}${certificate.ipfsHash}`);
+    }
+  }, [certificate]);
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} size="lg">
+      <ModalOverlay />
+      <ModalContent>
+        <ModalHeader>Certificate Details</ModalHeader>
+        <ModalCloseButton />
+        <ModalBody>
+          {/* NFT Image */}
+          {imageUrl && (
+            <Box mb={6} borderRadius="md" overflow="hidden">
+              <Image
+                src={imageUrl}
+                alt="Certificate NFT"
+                width="100%"
+                objectFit="contain"
+                maxH="300px"
+                fallback={
+                  <Image
+                    src={`${IPFS_GATEWAY}${certificate?.ipfsHash}`}
+                    alt="Certificate NFT"
+                    width="100%"
+                    objectFit="contain"
+                    maxH="300px"
+                  />
+                }
+              />
+            </Box>
+          )}
+
+          <Stack spacing={4}>
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Student Address</Text>
+              <Text>{certificate?.student}</Text>
+            </Box>
+            
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Certificate Hash</Text>
+              <Text>{certificate?.certificateHash}</Text>
+            </Box>
+            
+            <Box>
+              <Text fontWeight="bold" color="gray.600">University Address</Text>
+              <Text>{certificate?.university}</Text>
+            </Box>
+            
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Issue Date</Text>
+              <Text>{new Date(certificate?.issueDate * 1000).toLocaleDateString()}</Text>
+            </Box>
+            
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Certificate Type</Text>
+              <Text>{certificate?.certificateType}</Text>
+            </Box>
+
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Student DID</Text>
+              <Text>{certificate?.studentDID}</Text>
+            </Box>
+
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Issuer DID</Text>
+              <Text>{certificate?.issuerDID}</Text>
+            </Box>
+
+            <Box>
+              <Text fontWeight="bold" color="gray.600">Status</Text>
+              <Badge colorScheme={certificate?.isValid ? 'green' : 'red'}>
+                {certificate?.isValid ? 'VALID' : 'REVOKED'}
+              </Badge>
+            </Box>
+          </Stack>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+        </ModalFooter>
+      </ModalContent>
+    </Modal>
+  );
+};
+
 function ViewerDashboard({ contracts, account, certificates }) {
   const [isInitializing, setIsInitializing] = useState(true);
   const [error, setError] = useState(null);
@@ -54,6 +145,8 @@ function ViewerDashboard({ contracts, account, certificates }) {
   const [searchHash, setSearchHash] = useState('');
   const [verificationResult, setVerificationResult] = useState(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [selectedCertificate, setSelectedCertificate] = useState(null);
+  const [isCertificateModalOpen, setIsCertificateModalOpen] = useState(false);
 
   const handleRegistration = async () => {
     if (!did) {
@@ -326,6 +419,11 @@ function ViewerDashboard({ contracts, account, certificates }) {
     }
   };
 
+  const handleViewCertificate = (certificate) => {
+    setSelectedCertificate(certificate);
+    setIsCertificateModalOpen(true);
+  };
+
   useEffect(() => {
     if (contracts?.educationCertificate && account) {
       console.log('Initializing with:', { contracts, account });
@@ -451,15 +549,13 @@ function ViewerDashboard({ contracts, account, certificates }) {
                             {new Date(cert.issueDate * 1000).toLocaleDateString()}
                           </Text>
                           <Text><strong>Type:</strong> {cert.certificateType}</Text>
-                          {cert.ipfsHash && (
-                            <Button
-                              size="sm"
-                              colorScheme="blue"
-                              onClick={() => handleViewIPFS(cert.ipfsHash)}
-                            >
-                              View Certificate Data
-                            </Button>
-                          )}
+                          <Button
+                            size="sm"
+                            colorScheme="blue"
+                            onClick={() => handleViewCertificate(cert)}
+                          >
+                            View Certificate Data
+                          </Button>
                         </Stack>
                       </CardBody>
                     </Card>
@@ -633,6 +729,12 @@ function ViewerDashboard({ contracts, account, certificates }) {
             onClose={() => setIsDataModalOpen(false)}
             data={viewingData}
             isLoading={isLoading}
+          />
+
+          <CertificateDetailsModal 
+            isOpen={isCertificateModalOpen}
+            onClose={() => setIsCertificateModalOpen(false)}
+            certificate={selectedCertificate}
           />
         </Box>
       )}
